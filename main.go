@@ -28,6 +28,7 @@ var (
 	s3Region                    = "default"
 	s3Conn                      controllers.S3Conn
 	logLevel                    = "info"
+	bearerToken                 = ""
 )
 
 func envString(key, def string) string {
@@ -53,6 +54,7 @@ func init() {
 	flag.StringVar(&s3Name, "s3_name", envString("S3_NAME", s3Name), "S3_NAME")
 	flag.StringVar(&s3Region, "s3_region", envString("S3_REGION", s3Region), "S3_REGION")
 	flag.StringVar(&listenPort, "listen_port", envString("LISTEN_PORT", listenPort), "LISTEN_PORT e.g ':9655'")
+	flag.StringVar(&bearerToken, "bearer_token", envString("BEARER_TOKEN", bearerToken), "BEARER_TOKEN")
 	flag.StringVar(&logLevel, "log_level", envString("LOG_LEVEL", logLevel), "LOG_LEVEL")
 	flag.BoolVar(&s3DisableSSL, "s3_disable_ssl", envBool("S3_DISABLE_SSL", s3DisableSSL), "s3 disable ssl")
 	flag.BoolVar(&s3DisableEndpointHostPrefix, "s3_disable_endpoint_host_prefix", envBool("S3_DISABLE_ENDPOINT_HOST_PREFIX", s3DisableEndpointHostPrefix), "S3_DISABLE_ENDPOINT_HOST_PREFIX")
@@ -132,10 +134,30 @@ func main() {
 	c := S3Collector{}
 	prometheus.MustRegister(c)
 
-	http.Handle("/metrics", promhttp.Handler())
+	// Define middleware for Bearer token authentication
+	authMiddleware := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			token := r.Header.Get("Authorization")
+			if token != "Bearer "+bearerToken {
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+
+	// Apply middleware to /metrics endpoint
+	http.Handle("/metrics", authMiddleware(promhttp.Handler()))
+	http.HandleFunc("/health", healthHandler)
+
 	log.Info("Beginning to serve on port", listenPort)
 	log.Info("s3 name '", s3Name, "' available at s3 endpoint '", s3Endpoint, "' will be monitored")
 	log.Info("listenPort :", listenPort)
 	log.Fatal(http.ListenAndServe(listenPort, nil))
 
+}
+
+func healthHandler(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("OK"))
 }

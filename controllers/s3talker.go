@@ -56,17 +56,13 @@ func S3UsageInfo(s3Conn S3Conn) (S3Summary, error) {
 		DisableSSL:                &s3Conn.S3ConnDisableSsl,
 		DisableEndpointHostPrefix: &s3Conn.S3ConnDisableEdnpointHostPrefix,
 		S3ForcePathStyle:          &s3Conn.S3ConnForcePathStyle,
-		// Region aws.String("us-east-1"), // This is counter intuitive but it will fail with a non-AWS region name
-		//Region:                    aws.String("default"),
-		//Region: aws.String(&s3Conn.S3ConnRegion),
-		Region: aws.String(s3Conn.S3ConnRegion),
+		Region:                    aws.String(s3Conn.S3ConnRegion),
 	}
 	newSession := session.New(s3Config)
 	s3Client := s3.New(newSession)
 
 	result, err := s3Client.ListBuckets(nil)
 	if err != nil {
-		//log.Fatal("Connection to S3 endpoint failed (log.Fatal):", err)
 		fmt.Println("Connection to S3 endpoint failed :", err)
 		s3All.S3Status = false
 		return s3All, errors.New("s3 endpoint: unable to connect")
